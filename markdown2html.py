@@ -1,140 +1,95 @@
 #!/usr/bin/python3
-'''
-A script that codes markdown to HTML.
+''' Script that takes an argument 2 strings:
 
-It takes two command-line arguments: the input Markdown file
-and the output HTML file. It parses a subset of Markdown syntax
-to generate basic HTML.
+    First argument is name Markdown file
+    Second argument is output file name
 '''
+
 import sys
-import os
+import os.path
 import re
 import hashlib
 
-def markdown_to_html(markdown_text):
-    """Converts a list of markdown lines to HTML.
-
-    Parses headings, unordered lists, ordered lists, bold, emphasis,
-    and special commands to generate corresponding HTML.
-
-    Args:
-        markdown_text (list): A list of strings, where each string
-                             represents a line of Markdown text.
-
-    Returns:
-        str: A string containing the generated HTML.
-    """
-    html_lines = []
-    in_unordered_list = False
-    in_ordered_list = False
-
-    for line in markdown_text:
-        line = line.rstrip()  # Remove trailing whitespace
-
-        # Headings
-        heading_match = re.match(r'^(#+) (.*)$', line)
-        if heading_match:
-            level = len(heading_match.group(1))
-            text = heading_match.group(2)
-            html_lines.append(f'<h{level}>{text}</h{level}>\n')
-            continue
-
-        # Unordered lists
-        elif line.startswith('- '):
-            if not in_unordered_list:
-                html_lines.append('<ul>\n')
-                in_unordered_list = True
-            html_lines.append(f'<li>{format_text(line[2:])}</li>\n')
-            continue
-        elif in_unordered_list and not line.startswith('- '):
-            html_lines.append('</ul>\n')
-            in_unordered_list = False
-
-        # Ordered lists
-        elif line.startswith('* '):
-            if not in_ordered_list:
-                html_lines.append('<ol>\n')
-                in_ordered_list = True
-            html_lines.append(f'<li>{format_text(line[2:])}</li>\n')
-            continue
-        elif in_ordered_list and not line.startswith('* '):
-            html_lines.append('</ol>\n')
-            in_ordered_list = False
-
-        # Special commands
-        elif line.startswith('[['):
-            command_match = re.match(r'\[\[(.*?)\]\]', line)
-            if command_match:
-                content = command_match.group(1)
-                md5_hash = hashlib.md5(content.encode()).hexdigest()
-                html_lines.append(f'<p>{md5_hash}</p>\n')
-                continue
-
-        elif line.startswith('(('):
-            command_match = re.match(r'\(\((.*?)\)\)', line)
-            if command_match:
-                content = command_match.group(1).lower().replace('c', '').replace('C', '')
-                html_lines.append(f'<p>{content}</p>\n')
-                continue
-
-        # Simple text paragraphs
-        elif line.strip():
-            formatted_line = format_text(line)
-            if html_lines and html_lines[-1].startswith('<p>'):
-                html_lines[-1] = html_lines[-1][:-3] + '<br/>\n' + formatted_line + '</p>\n'
-            else:
-                html_lines.append(f'<p>\n{formatted_line}\n</p>\n')
-        elif html_lines and html_lines[-1].startswith('<p>'):
-            html_lines[-1] = html_lines[-1][:-3] + '</p>\n'
-
-    # Close any open lists at the end of the file
-    if in_unordered_list:
-        html_lines.append('</ul>\n')
-    if in_ordered_list:
-        html_lines.append('</ol>\n')
-
-    return "".join(html_lines)
-
-def format_text(text):
-    """Formats text for bold and emphasis.
-
-    Replaces Markdown bold and emphasis syntax with HTML tags.
-
-    Args:
-        text (str): The input string containing Markdown formatting.
-
-    Returns:
-        str: The string with HTML bold and emphasis tags.
-    """
-    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-    text = re.sub(r'__(.*?)__', r'<em>\1</em>', text)
-    return text
-
 if __name__ == '__main__':
-    if len(sys.argv) != 3:
-        print('Usage: ./markdown2html.py README.md README.html', file=sys.stderr)
-        sys.exit(1)
+    if len(sys.argv) < 3:
+        print('Usage: ./markdown2html.py README.md README.html',
+              file=sys.stderr)
+        exit(1)
 
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
+    if not os.path.isfile(sys.argv[1]):
+        print('Missing {}'.format(sys.argv[1]), file=sys.stderr)
+        exit(1)
 
-    if not os.path.exists(input_file):
-        print(f'Missing {input_file}', file=sys.stderr)
-        sys.exit(1)
+    with open(sys.argv[1]) as read:
+        with open(sys.argv[2], 'w') as html:
+            unordered_start, ordered_start, paragraph = False, False, False
+            for line in read:
+                line = line.replace('**', '<b>', 1)
+                line = line.replace('**', '</b>', 1)
+                line = line.replace('__', '<em>', 1)
+                line = line.replace('__', '</em>', 1)
 
-    try:
-        with open(input_file, 'r', encoding='utf-8') as f_in:
-            markdown_content = [line.rstrip('\n') for line in f_in.readlines()] # Remove trailing newlines too!
-    except IOError:
-        print(f'Error reading {input_file}', file=sys.stderr)
-        sys.exit(1)
+                md5 = re.findall(r'\[\[.+?\]\]', line)
+                md5_inside = re.findall(r'\[\[(.+?)\]\]', line)
+                if md5:
+                    line = line.replace(md5[0], hashlib.md5(
+                        md5_inside[0].encode()).hexdigest())
 
-    html_output = markdown_to_html(markdown_content)
+                remove_letter_c = re.findall(r'\(\(.+?\)\)', line)
+                remove_c_more = re.findall(r'\(\((.+?)\)\)', line)
+                if remove_letter_c:
+                    remove_c_more = ''.join(
+                        c for c in remove_c_more[0] if c not in 'Cc')
+                    line = line.replace(remove_letter_c[0], remove_c_more)
 
-    try:
-        with open(output_file, 'w', encoding='utf-8') as f_out:
-            f_out.write(html_output)
-        sys.exit(0)
-    except IOError:
-        print(f'Error writing to {output_file}', file=sys.stderr)
-        sys.exit(1)
+                length = len(line)
+                headings = line.lstrip('#')
+                heading_num = length - len(headings)
+                unordered = line.lstrip('-')
+                unordered_num = length - len(unordered)
+                ordered = line.lstrip('*')
+                ordered_num = length - len(ordered)
+                if 1 <= heading_num <= 6:
+                    line = '<h{}>'.format(
+                        heading_num) + headings.strip() + '</h{}>\n'.format(
+                        heading_num)
+
+                if unordered_num:
+                    if not unordered_start:
+                        html.write('<ul>\n')
+                        unordered_start = True
+                    line = '<li>' + unordered.strip() + '</li>\n'
+                if unordered_start and not unordered_num:
+                    html.write('</ul>\n')
+                    unordered_start = False
+
+                if ordered_num:
+                    if not ordered_start:
+                        html.write('<ol>\n')
+                        ordered_start = True
+                    line = '<li>' + ordered.strip() + '</li>\n'
+                if ordered_start and not ordered_num:
+                    html.write('</ol>\n')
+                    ordered_start = False
+
+                if not (heading_num or unordered_start or ordered_start):
+                    if not paragraph and length > 1:
+                        html.write('<p>\n')
+                        paragraph = True
+                    elif length > 1:
+                        html.write('<br/>\n')
+                    elif paragraph:
+                        html.write('</p>\n')
+                        paragraph = False
+
+                if length > 1:
+                    html.write(line)
+
+            if unordered_start:
+                html.write('</ul>\n')
+            if ordered_start:
+                html.write('</ol>\n')
+            if paragraph:
+                html.write('</p>\n')
+    exit (0)
+    
