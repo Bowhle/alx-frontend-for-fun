@@ -50,15 +50,14 @@ if __name__ == '__main__':
                 ordered = line.lstrip('*')
                 ordered_num = length - len(ordered)
                 if 1 <= heading_num <= 6:
-                    line = '<h{}>'.format(
-                        heading_num) + headings.strip() + '</h{}>\n'.format(
-                        heading_num)
+                    line = '<h{}>{}</h{}>\n'.format(
+                        heading_num, headings.strip(), heading_num)
 
                 if unordered_num:
                     if not unordered_start:
                         html.write('<ul>\n')
                         unordered_start = True
-                    line = '<li>' + unordered.strip() + '</li>\n'
+                    line = '<li>{}</li>\n'.format(unordered.strip())
                 if unordered_start and not unordered_num:
                     html.write('</ul>\n')
                     unordered_start = False
@@ -67,7 +66,7 @@ if __name__ == '__main__':
                     if not ordered_start:
                         html.write('<ol>\n')
                         ordered_start = True
-                    line = '<li>' + ordered.strip() + '</li>\n'
+                    line = '<li>{}</li>\n'.format(ordered.strip())
                 if ordered_start and not ordered_num:
                     html.write('</ol>\n')
                     ordered_start = False
@@ -91,5 +90,4 @@ if __name__ == '__main__':
                 html.write('</ol>\n')
             if paragraph:
                 html.write('</p>\n')
-    exit (0)
-    
+    exit(0)
